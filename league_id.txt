@@ -1,7 +1,0 @@
-[
-    "epl",
-    "intl-friendly-u21",
-    "intl-friendly",
-    "fa-cup",
-    "championship"
-]
