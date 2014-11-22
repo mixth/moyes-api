@@ -1,0 +1,131 @@
+var cheerio = require("cheerio");
+var http = require('http');
+var fs = require('fs');
+var moment = require('moment');
+var ObjectId = require('mongojs').ObjectId;
+var ISOTime = require('mongojs').ISOTime;
+
+var debug = true;
+
+function download(url, callback) {
+  http.get(url, function(res) {
+    var data = "";
+    res.on('data', function (chunk) {
+      data += chunk;
+    });
+    res.on("end", function() {
+      callback(data);
+    });
+  }).on("error", function() {
+    callback(null);
+  });
+}
+
+var latestReadDate;
+
+function setLatestReadDate (value)
+{
+	latestReadDate = value;
+}
+
+// Initialize targetUrl for fetching
+var targetUrl = [];
+targetUrl.push({id : 'epl', url : 'http://www.livescore.com/soccer/england/premier-league/'});
+targetUrl.push({id : 'euro2016-qua-b', url : 'http://www.livescore.com/soccer/euro/qualification-group-b/'});
+
+var databaseName = 'moyes';
+var db = require('mongojs').connect(databaseName, [targetUrl[0].id, targetUrl[1].id]);
+
+
+// Download each url and fetch data
+for (var i = 0; i < targetUrl.length; i++)
+{
+	var collection = targetUrl[i].id;
+	var that = this;
+	download(targetUrl[i].url, function(data) {
+		if (data) {
+    			//console.log(data);
+			//fs.writeFile('test.html', data);
+			var $ = cheerio.load(data);
+    			$("table.league-table > tr").each(function(i, e) {
+				var local_collection = collection;
+				var time = $(e).find("td.fd").text();
+				// Detect that this is a match entry
+				if (time != "")
+				{
+					var start;
+					var match = {};
+					if (time.match(/:/g) == ':')
+					{
+						// Convert play time to ISO time
+						var sumTime = latestReadDate + "2014" + time + " +0000";
+						console.log(sumTime);
+						match.start = ISOTime(moment(sumTime, " MMMM D YYYY HH:mm Z").format());
+						match.time = 'N/A';
+					}
+					else
+					{
+						match.time = time.trim();
+					}
+					match.team1 = $(e).find("td.fh").text();
+					match.team1 = match.team1.trim().toLowerCase().replace(/\s+/g, '-');
+					score = $(e).find("td.fs > a").text();
+					match.score1 = score.match(/\d\s/g)[0].trim();
+					match.score2 = score.match(/\s\d/g)[0].trim();
+					match.team2 = $(e).find("td.fa").text();
+					match.team2 = match.team2.trim().toLowerCase().replace(/\s+/g, '-');
+					console.log(match.time + ' | ' + match.team1 + " " + match.score1 + " - " + match.score2 + match.team2);
+
+					// Try to match the match with existing match in DB
+					console.log(that.collection);
+					db[that.collection].find({'team1' : match.team1, 'team2' : match.team2}, function (err, searchResult) {
+						// If the match is found, update with new information
+						if (searchResult.length > 0)
+						{
+							// Does the match start? If not, we may not need to update a thing
+							if (match.start)
+							{
+								if (match.start != searchResult.start)
+								{
+									if (debug) console.log('update new time for ' + match.team1 + ' - ' + match.team2);
+									db[that.collection].update({_id : searchResult._id}, 
+										{$set: { 
+											'start' : match.start
+											}
+										}
+									);
+								}
+							}
+							else
+							{
+								if (debug) console.log('update ' + match.team1 + ' - ' + match.team2);
+								db[that.collection].update({_id : searchResult._id}, 
+									{$set: {
+										'time' : match.time, 
+										'score1' : match.score1, 
+										'score2' : match.score2
+										}
+									}
+								);
+							}
+						}
+						else
+						{
+							if (debug) console.log('insert ' + match.team1 + ' - ' + match.team2);
+							db[that.collection].insert(match);
+						}
+					});
+				}
+				// Detect that this is a date entry
+				else
+				{
+					var date = $(e).find('span.date').text();
+					setLatestReadDate(date);
+					console.log(">> " + latestReadDate);
+				}
+			}.bind(this));
+			console.log("done");
+  		}
+  		else console.log("error");  
+	}.bind(this));
+}

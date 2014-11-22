@@ -5,8 +5,8 @@ exports.manual_fetcher = function (filename) {
 	var moment = require('moment');
 	var ObjectId = require('mongojs').ObjectId;
 
-	var debug = true;
-
+	var debug = false;
+	var debug2 = true;
 	function download(url, callback) {
 	  http.get(url, function(res) {
 		var data = "";
@@ -78,6 +78,14 @@ exports.manual_fetcher = function (filename) {
 						match.team1 = match.team1.trim().toLowerCase().replace(/\s+/g, '-');
 						score = $(e).find("td.fs > a").text();
 
+						// if score is not set (is not in <a> tag somehow) we'll look upper
+						if (score == "")
+						{
+							score = $(e).find("td.fs").text();
+						        //console.log(score);
+						}
+
+						// get the score inside
 						var score1 = score.match(/\d\s/g);
 						if (score1)
 							match.score1 = score1[0].trim();
@@ -115,7 +123,7 @@ exports.manual_fetcher = function (filename) {
 								{
 									if (searchResult[0].time != match.time || searchResult[0].score1 != match.score1 || searchResult[0].score2 != match.score2)
 									{
-										if (debug) console.log('--update ' + match.team1 + ' - ' + match.team2);
+										if (debug2) console.log('--update ' + match.team1 + ' - ' + match.team2);
 										db[this.collection_dollar].update({_id : ObjectId(searchResult[0]._id)}, 
 											{$set: {
 												"time" : match.time, 
@@ -134,7 +142,7 @@ exports.manual_fetcher = function (filename) {
 								// If match.start is never set, this is a live match, add now as its start time
 								if (!match.start)
 								{
-									if (debug) console.log('live match: insert ' + match.team1 + ' - ' + match.team2);
+									if (debug2) console.log('live match: insert ' + match.team1 + ' - ' + match.team2);
 									match.start = new Date(now.format());
 									db[this.collection_dollar].insert(match);
 								}
@@ -144,7 +152,7 @@ exports.manual_fetcher = function (filename) {
 									// Check if the match is within 12 hours of now, if yes, add it to the system
 									if (Math.abs(now.format('x') - match.start.getTime()) <= (1000*60*60*hourGap))
 									{
-										if (debug) console.log('insert ' + match.team1 + ' - ' + match.team2);
+										if (debug2) console.log('insert ' + match.team1 + ' - ' + match.team2);
 										db[this.collection_dollar].insert(match);
 									}
 									else

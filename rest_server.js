@@ -33,6 +33,14 @@ function getMatch(league, team, callback)
 var app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended : true}));
+app.set('json spaces', '\t');
+
+app.get('/moyes', function (req, res) {
+	var fs = require('fs');
+	var targetFile = fs.readFileSync("league_id.txt");
+	var leagueId = JSON.parse(targetFile);
+	res.send(leagueId);	
+});
 
 app.get('/moyes/:league', function (req, res) {
 	var league = req.params.league;
@@ -49,7 +57,7 @@ app.get('/moyes/:league', function (req, res) {
 		{
 			info ["successful"] = 1;
 		}
-		res.json(info);
+		res.send(info);
 	});
 });
 
@@ -72,7 +80,7 @@ app.get('/moyes/:league/:team', function (req, res) {
                 {
                         info ["successful"] = 1;
                 }
-                res.json(info);
+                res.send(info);
         });
 });
 
